@@ -1,4 +1,4 @@
-Allegro Hand Linux Project
+Allegro Hand / Kinect Rock Paper Scissors
 ==========================
 Note: This project works only for PEAK System CAN interface (chardev) for USB: PCAN-USB
 
@@ -7,7 +7,7 @@ Download
 File:Allegro hand linux.zip
 
 Git Repo
-https://github.com/simlabrobotics/allegro_hand_linux
+https://github.com/thedabbour/allegro_hand_linux
 
 
 Build and Run: "grasp"
@@ -54,6 +54,4 @@ bin/grasp
 8. Use keyboard command to move Allegro Hand!!!!
 
 ================================================
-If you have any questions, feel free to ask.
-
-support@simlab.co.kr
+The Allegro Hand project was developed by Dr. Kyong-Sok "K.C." Chang; this 
