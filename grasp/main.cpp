@@ -3,16 +3,51 @@
 
 // myAllegroHand.cpp : Defines the entry point for the console application.
 //
+#include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <termios.h>  //_getch
 #include <string.h>
 #include <pthread.h>
+#include <math.h>
 #include "canAPI.h"
 #include "rDeviceAllegroHandCANDef.h"
 #include "RockScissorsPaper.h"
-#include <BHand/BHand.h>
+#include <BHand/BHand.h> 
+
+static struct termios old; 
+static struct termios newa;
+
+void initTermios(int echo) 
+{
+  tcgetattr(0, &old); /* grab old terminal i/o settings */
+  newa = old; /* make new settings same as old settings */
+  newa.c_lflag &= ~ICANON; /* disable buffered i/o */
+  newa.c_lflag &= echo ? ECHO : ~ECHO; /* set echo mode */
+  tcsetattr(0, TCSANOW, &newa); /* use these new terminal i/o settings now */
+}
+
+/* Restore old terminal i/o settings */
+void resetTermios(void) 
+{
+  tcsetattr(0, TCSANOW, &old);
+}
+
+/* Read 1 character - echo defines echo mode */
+char getch_(int echo) 
+{
+  char ch;
+  initTermios(echo);
+  ch = getchar();
+  resetTermios();
+  return ch;
+}
+
+char getch(void) 
+{
+  return getch_(0);
+}
 
 typedef char    TCHAR;
 #define _T(X)   X
@@ -45,33 +80,8 @@ double cur_des[MAX_DOF];
 const bool	RIGHT_HAND = true;
 const int	HAND_VERSION = 3;
 
-const double tau_cov_const_v2 = 800.0; // 800.0 for SAH020xxxxx
 const double tau_cov_const_v3 = 1200.0; // 1200.0 for SAH030xxxxx
-
-//const double enc_dir[MAX_DOF] = { // SAH020xxxxx
-//	1.0, -1.0, 1.0, 1.0,
-//	1.0, -1.0, 1.0, 1.0,
-//	1.0, -1.0, 1.0, 1.0,
-//	1.0, 1.0, -1.0, -1.0
-//};
-//const double motor_dir[MAX_DOF] = { // SAH020xxxxx
-//	1.0, 1.0, 1.0, 1.0,
-//	1.0, -1.0, -1.0, 1.0,
-//	-1.0, 1.0, 1.0, 1.0,
-//	1.0, 1.0, 1.0, 1.0
-//};
-//const int enc_offset[MAX_DOF] = { // SAH020CR020
-//	-611, -66016, 1161, 1377,
-//	-342, -66033, -481, 303,
-//	30, -65620, 446, 387,
-//	-3942, -626, -65508, -66768
-//};
-//const int enc_offset[MAX_DOF] = { // SAH020BR013
-//	-391,	-64387,	-129,	 532,
-//	 178,	-66030,	-142,	 547,
-//	-234,	-64916,	 7317,	 1923,
-//	 1124,	-1319,	-65983, -65566
-//};
+const double tau_cov_const_v2 = 800.0; // 800.0 for SAH20xxxxx
 
 const double enc_dir[MAX_DOF] = { // SAH030xxxxx
   1.0, 1.0, 1.0, 1.0,
@@ -85,28 +95,16 @@ const double motor_dir[MAX_DOF] = { // SAH030xxxxx
   1.0, 1.0, 1.0, 1.0,
   1.0, 1.0, 1.0, 1.0
 };
-//const int enc_offset[MAX_DOF] = { // SAH030AR023
-//	-1700, -568, -3064, -36,
-//	-2015, -1687, 188, -772,
-//	-3763, 782, -3402, 368,
-//	1059, -2547, -692, 2411
-//};
-//const int enc_offset[MAX_DOF] = { // SAH030AL026
-//	699, 1654, 5, -464,
-//	-47, 1640, 325, 687,
-//	-361, 1161, -259, -510,
-//	-1563, 569, 470, -812
-//};
-const int enc_offset[MAX_DOF] = { // SAH030C033R
-  -1591, -277, 545, 168,
-  -904, 53, -233, -1476,
-  2, -987, -230, -106,
-  -1203, 361, 327, 565
+const int enc_offset[MAX_DOF] = { // SAH030BR029
+  -180, -426, -569, 124,
+  -1543, 640, 216, -1345,
+  -103, -868, -559, 260,
+  -1461, -1316, 634, -506
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
 // functions declarations
-char Getch();
+// char Getch();
 void PrintInstruction();
 void MainLoop();
 bool OpenCAN();
@@ -115,33 +113,6 @@ int GetCANChannelIndex(const TCHAR* cname);
 bool CreateBHandAlgorithm();
 void DestroyBHandAlgorithm();
 void ComputeTorque();
-
-/////////////////////////////////////////////////////////////////////////////////////////
-// Read keyboard input (one char) from stdin
-char Getch()
-{
-  /*#include <unistd.h>   //_getch*/
-  /*#include <termios.h>  //_getch*/
-  char buf=0;
-  struct termios old={0};
-  fflush(stdout);
-  if(tcgetattr(0, &old)<0)
-    perror("tcsetattr()");
-  old.c_lflag&=~ICANON;
-  old.c_lflag&=~ECHO;
-  old.c_cc[VMIN]=1;
-  old.c_cc[VTIME]=0;
-  if(tcsetattr(0, TCSANOW, &old)<0)
-    perror("tcsetattr ICANON");
-  if(read(0,&buf,1)<0)
-    perror("read()");
-  old.c_lflag|=ICANON;
-  old.c_lflag|=ECHO;
-  if(tcsetattr(0, TCSADRAIN, &old)<0)
-    perror ("tcsetattr ~ICANON");
-  printf("%c\n",buf);
-  return buf;
-}
 
 /////////////////////////////////////////////////////////////////////////////////////////
 // CAN communication thread
@@ -164,41 +135,41 @@ static void* ioThreadProc(void* inst)
 	    {
 	    case ID_CMD_QUERY_ID:
 	      {
-		printf(">CAN(%d): AllegroHand revision info: 0x%02x%02x\n", CAN_Ch, data[3], data[2]);
+		/*printf(">CAN(%d): AllegroHand revision info: 0x%02x%02x\n", CAN_Ch, data[3], data[2]);
 		printf("                      firmware info: 0x%02x%02x\n", data[5], data[4]);
-		printf("                      hardware type: 0x%02x\n", data[7]);
+		printf("                      hardware type: 0x%02x\n", data[7]);*/
 	      }
 	      break;
 
 	    case ID_CMD_AHRS_POSE:
 	      {
-		printf(">CAN(%d): AHRS Roll : 0x%02x%02x\n", CAN_Ch, data[0], data[1]);
+		/*printf(">CAN(%d): AHRS Roll : 0x%02x%02x\n", CAN_Ch, data[0], data[1]);
 		printf("               Pitch: 0x%02x%02x\n", data[2], data[3]);
-		printf("               Yaw  : 0x%02x%02x\n", data[4], data[5]);
+		printf("               Yaw  : 0x%02x%02x\n", data[4], data[5]);*/
 	      }
 	      break;
 
 	    case ID_CMD_AHRS_ACC:
 	      {
-		printf(">CAN(%d): AHRS Acc(x): 0x%02x%02x\n", CAN_Ch, data[0], data[1]);
+		/*printf(">CAN(%d): AHRS Acc(x): 0x%02x%02x\n", CAN_Ch, data[0], data[1]);
 		printf("               Acc(y): 0x%02x%02x\n", data[2], data[3]);
-		printf("               Acc(z): 0x%02x%02x\n", data[4], data[5]);
+		printf("               Acc(z): 0x%02x%02x\n", data[4], data[5]);*/
 	      }
 	      break;
 
 	    case ID_CMD_AHRS_GYRO:
 	      {
-		printf(">CAN(%d): AHRS Angular Vel(x): 0x%02x%02x\n", CAN_Ch, data[0], data[1]);
+		/*printf(">CAN(%d): AHRS Angular Vel(x): 0x%02x%02x\n", CAN_Ch, data[0], data[1]);
 		printf("               Angular Vel(y): 0x%02x%02x\n", data[2], data[3]);
-		printf("               Angular Vel(z): 0x%02x%02x\n", data[4], data[5]);
+		printf("               Angular Vel(z): 0x%02x%02x\n", data[4], data[5]);*/
 	      }
 	      break;
 
 	    case ID_CMD_AHRS_MAG:
 	      {
-		printf(">CAN(%d): AHRS Magnetic Field(x): 0x%02x%02x\n", CAN_Ch, data[0], data[1]);
+		/*printf(">CAN(%d): AHRS Magnetic Field(x): 0x%02x%02x\n", CAN_Ch, data[0], data[1]);
 		printf("               Magnetic Field(y): 0x%02x%02x\n", data[2], data[3]);
-		printf("               Magnetic Field(z): 0x%02x%02x\n", data[4], data[5]);
+		printf("               Magnetic Field(z): 0x%02x%02x\n", data[4], data[5]);*/
 	      }
 	      break;
 
@@ -273,70 +244,98 @@ static void* ioThreadProc(void* inst)
 
 /////////////////////////////////////////////////////////////////////////////////////////
 // Application main-loop. It handles the commands from rPanelManipulator and keyboard events
-void MainLoop()
-{
+
+void MainLoop() {
   bool bRun = true;
-
-  while (bRun)
-    {
-      int c = Getch();
-      switch (c)
-        {
-        case 'q':
-	  if (pBHand) pBHand->SetMotionType(eMotionType_NONE);
-	  bRun = false;
-	  break;
-
-        case 'h':
-	  if (pBHand) pBHand->SetMotionType(eMotionType_HOME);
-	  break;
-
-        case 'r':
-	  if (pBHand) pBHand->SetMotionType(eMotionType_READY);
-	  break;
-
-        case 'g':
-	  if (pBHand) pBHand->SetMotionType(eMotionType_GRASP_3);
-	  break;
-
-        case 'k':
-	  if (pBHand) pBHand->SetMotionType(eMotionType_GRASP_4);
-	  break;
-
-        case 'p':
-	  if (pBHand) pBHand->SetMotionType(eMotionType_PINCH_IT);
-	  break;
-
-        case 'm':
-	  if (pBHand) pBHand->SetMotionType(eMotionType_PINCH_MT);
-	  break;
-
-        case 'a':
-	  if (pBHand) pBHand->SetMotionType(eMotionType_GRAVITY_COMP);
-	  break;
-
-        case 'e':
-	  if (pBHand) pBHand->SetMotionType(eMotionType_ENVELOP);
-	  break;
-
-        case 'o':
-	  if (pBHand) pBHand->SetMotionType(eMotionType_NONE);
-	  break;
-
-	case '1':
-	  MotionRock();
-	  break;
-
-	case '2':
-	  MotionScissors();
-	  break;
-
-	case '3':
-	  MotionPaper();
-	  break;
-
-        }
+  while (bRun) {
+    	int choice = 0;	
+	printf("Getting ready...\n");
+	sleep(1);
+	pBHand->SetMotionType(eMotionType_READY);
+	printf("I'm ready!\n");
+	sleep(1);
+	int go = getch();
+	if (go == 'g') {
+	  FILE *input;
+	  input = fopen("/home/abood/sketchbook/RockPaperScissorRecognition/gesture.txt", "r");
+	  if (input) {
+	    choice = getc(input);
+	    fclose(input);
+          }
+	  if (choice == '1' || choice == '2' || choice == '3'){
+		srand ( time(NULL) );
+	    int c = round(1 + (rand() % 2));
+      	    switch (c)
+        	{
+		case 1:
+		  MotionRock();
+		  if (choice == '1'){
+			printf("You played Rock; Allegro Hand played Rock.\n");
+			printf("You drew with Allegro Hand! Let's try that again!\n");
+		  }
+		  if (choice == '2'){
+			printf("You played Paper; Allegro Hand played Rock.\n");
+			printf("Congratulations! You beat Allegro Hand! Let's try that again!\n");
+		  }
+		  if (choice == '3'){
+			printf("You played Scissors; Allegro Hand played Rock.\n");
+			printf("Too bad! You lost against Allegro Hand! Let's try that again!\n");
+		  }
+		  printf("Restarting in 3...\n");
+		  sleep(1);
+		  printf("Restarting in 2...\n");
+		  sleep(1);
+		  printf("Restarting in 1...\n");
+		  sleep(1);
+		  break;
+	
+		case 2:
+		  MotionPaper();
+		  if (choice == '1'){
+			printf("You played Rock; Allegro Hand played Paper.\n");
+			printf("Too bad! You lost against Allegro Hand! Let's try that again!\n");
+		  }
+		  if (choice == '2'){
+			printf("You played Paper; Allegro Hand played Paper.\n");
+			printf("You drew with Allegro Hand! Let's try that again! Let's try that again!\n");
+		  }
+		  if (choice == '3'){
+			printf("You played Scissors; Allegro Hand played Paper.\n");
+			printf("Congratulations! You beat Allegro Hand! Let's try that again!\n");
+		  }
+		  printf("Restarting in 3...\n");
+		  sleep(1);
+		  printf("Restarting in 2...\n");
+		  sleep(1);
+		  printf("Restarting in 1...\n");
+		  sleep(1);
+		  break;
+	
+		case 3:
+		  MotionScissors();
+		  if (choice == '1'){
+			printf("You played Rock; Allegro Hand played Scissors.\n");
+			printf("Congratulations! You beat Allegro Hand! Let's try that again!\n");
+		  }
+		  if (choice == '2'){
+			printf("You played Paper; Allegro Hand played Scissors.\n");
+			printf("Too bad! You lost against Allegro Hand! Let's try that again!\n");
+		  }
+		  if (choice == '3'){
+			printf("You played Scissors; Allegro Hand played Scissors.\n");
+			printf("You drew with Allegro Hand! Let's try that again!\n");
+		  }
+		  printf("Restarting in 3...\n");
+		  sleep(1);
+		  printf("Restarting in 2...\n");
+		  sleep(1);
+		  printf("Restarting in 1...\n");
+		  sleep(1);
+		  break;
+	        }
+	}
     }
+}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -364,12 +363,12 @@ bool OpenCAN()
   CAN_Ch = 1;
 #endif
   CAN_Ch = GetCANChannelIndex(_T("USBBUS1"));
-  printf(">CAN(%d): open\n", CAN_Ch);
+  //printf(">CAN(%d): open\n", CAN_Ch);
 
   int ret = command_can_open(CAN_Ch);
   if(ret < 0)
     {
-      printf("ERROR command_canopen !!! \n");
+      //printf("ERROR command_canopen !!! \n");
       return false;
     }
 
@@ -377,41 +376,41 @@ bool OpenCAN()
 
   /* initialize condition variable */
   int ioThread_error = pthread_create(&hThread, NULL, ioThreadProc, 0);
-  printf(">CAN: starts listening CAN frames\n");
+  //printf(">CAN: starts listening CAN frames\n");
 
-  printf(">CAN: query system id\n");
+  //printf(">CAN: query system id\n");
   ret = command_can_query_id(CAN_Ch);
   if(ret < 0)
     {
-      printf("ERROR command_can_query_id !!! \n");
+      //printf("ERROR command_can_query_id !!! \n");
       command_can_close(CAN_Ch);
       return false;
     }
 
-  printf(">CAN: AHRS set\n");
+  //printf(">CAN: AHRS set\n");
   ret = command_can_AHRS_set(CAN_Ch, AHRS_RATE_100Hz, AHRS_MASK_POSE | AHRS_MASK_ACC);
   if(ret < 0)
     {
-      printf("ERROR command_can_AHRS_set !!! \n");
+      //printf("ERROR command_can_AHRS_set !!! \n");
       command_can_close(CAN_Ch);
       return false;
     }
 
-  printf(">CAN: system init\n");
+  //printf(">CAN: system init\n");
   ret = command_can_sys_init(CAN_Ch, 3/*msec*/);
   if(ret < 0)
     {
-      printf("ERROR command_can_sys_init !!! \n");
+      //printf("ERROR command_can_sys_init !!! \n");
       command_can_close(CAN_Ch);
       return false;
     }
 
-  printf(">CAN: start periodic communication\n");
+  //printf(">CAN: start periodic communication\n");
   ret = command_can_start(CAN_Ch);
 
   if(ret < 0)
     {
-      printf("ERROR command_can_start !!! \n");
+      //printf("ERROR command_can_start !!! \n");
       command_can_stop(CAN_Ch);
       command_can_close(CAN_Ch);
       return false;
@@ -424,25 +423,25 @@ bool OpenCAN()
 // Close CAN data channel
 void CloseCAN()
 {
-  printf(">CAN: stop periodic communication\n");
+  //printf(">CAN: stop periodic communication\n");
   int ret = command_can_stop(CAN_Ch);
   if(ret < 0)
     {
-      printf("ERROR command_can_stop !!! \n");
+    //  printf("ERROR command_can_stop !!! \n");
     }
 
   if (ioThreadRun)
     {
-      printf(">CAN: stoped listening CAN frames\n");
+      //printf(">CAN: stoped listening CAN frames\n");
       ioThreadRun = false;
       int status;
       pthread_join(hThread, (void **)&status);
       hThread = 0;
     }
 
-  printf(">CAN(%d): close\n", CAN_Ch);
+  //printf(">CAN(%d): close\n", CAN_Ch);
   ret = command_can_close(CAN_Ch);
-  if(ret < 0) printf("ERROR command_can_close !!! \n");
+  if(ret < 0) {}//printf("ERROR command_can_close !!! \n");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -476,24 +475,12 @@ void DestroyBHandAlgorithm()
 // Print program information and keyboard instructions
 void PrintInstruction()
 {
-  printf("--------------------------------------------------\n");
-  printf("myAllegroHand: ");
-  if (RIGHT_HAND) printf("Right Hand, v%i.x\n\n", HAND_VERSION); else printf("Left Hand, v%i.x\n\n", HAND_VERSION);
-
-  printf("Keyboard Commands:\n");
-  printf("H: Home Position (PD control)\n");
-  printf("R: Ready Position (used before grasping)\n");
-  printf("G: Three-Finger Grasp\n");
-  printf("K: Four-Finger Grasp\n");
-  printf("P: Two-finger pinch (index-thumb)\n");
-  printf("M: Two-finger pinch (middle-thumb)\n");
-  printf("E: Envelop Grasp (all fingers)\n");
-  printf("A: Gravity Compensation\n\n");
-
-  printf("O: Servos OFF (any grasp cmd turns them back on)\n");
-  printf("Q: Quit this program\n");
-
-  printf("--------------------------------------------------\n\n");
+  printf("-------------------------------------------\n");
+  printf("BAU Allegro Hand: ");
+  if (RIGHT_HAND) printf("Right Hand, v%i.x\n", HAND_VERSION); else printf("Left Hand, v%i.x\n", HAND_VERSION);
+  printf("Allegro Hand code orginally developed by Kyong-Sok Chang\n");
+  printf("Robotic Rock-Paper-Scissors by A. Dabbour\n");
+  printf("-------------------------------------------\n\n");
 }
 /////////////////////////////////////////////////////////////////////////////////////////
 // Get channel index for Peak CAN interface
@@ -575,12 +562,11 @@ int main(int argc, TCHAR* argv[])
   memset(cur_des, 0, sizeof(cur_des));
   curTime = 0.0;
 
-  if (CreateBHandAlgorithm() && OpenCAN())
+  if (CreateBHandAlgorithm() && OpenCAN()){
     MainLoop();
-
+  }
   CloseCAN();
   DestroyBHandAlgorithm();
 
   return 0;
 }
-
