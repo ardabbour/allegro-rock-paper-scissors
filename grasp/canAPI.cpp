@@ -184,8 +184,8 @@ int canSendMsg(int bus, int id, char len, unsigned char *data, int blocking){
 	if (Status != PCAN_ERROR_OK)
 	{
 		CAN_GetErrorText(Status, 0, strMsg);
-		printf("canSendMsg(): CAN_Write() failed with error %ld\n", Status);
-		printf("%s\n", strMsg);
+		//printf("canSendMsg(): CAN_Write() failed with error %ld\n", Status);
+		//printf("%s\n", strMsg);
 		return Status;
 	}
 
@@ -201,11 +201,11 @@ int command_can_open(int ch)
 
 	DWORD ret;
 
-	printf("<< CAN: Open Channel...\n");
+	//printf("<< CAN: Open Channel...\n");
 	ret = initCAN(ch);
 	if (ret != 0) return ret;
-	printf("\t- Ch.%2d (OK)\n", ch);
-	printf("\t- Done\n");
+	//printf("\t- Ch.%2d (OK)\n", ch);
+	//printf("\t- Done\n");
 
 	return 0;
 }
