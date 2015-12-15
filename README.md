@@ -19,8 +19,11 @@ Dependencies
 Instructions
 ------------
 1. Install all the dependencies mentioned above.
-2. Modify the 'main.cpp' function to include the correct motor offset values of you Allegro Hand model and the file location of gesture recognition result.
-3. Play!
+2. Copy-paste the 'RockPaperScissorsRecognition' code on Processing and run it.
+3. Modify the 'main.cpp' function to include the correct motor offset values of your Allegro Hand model and the file location of gesture recognition result.
+4. Build and run the grasp project 'out-of-source'.
+5. Copy-paste the 'RockPaperScissorsRecognition' code on Processing and run it.
+6. Play!
 
 -----------------------------------------------------------------------------------------------------------------------------------
 The Allegro Hand project was developed by Dr. Kyong-Sok "K.C." Chang; this repository is a fork of the original that can be found over at https://github.com/simlabrobotics/allegro_hand_linux
