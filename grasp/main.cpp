@@ -95,11 +95,11 @@ const double motor_dir[MAX_DOF] = { // SAH030xxxxx
   1.0, 1.0, 1.0, 1.0,
   1.0, 1.0, 1.0, 1.0
 };
-const int enc_offset[MAX_DOF] = { // SAH030BR029
-  -180, -426, -569, 124,
-  -1543, 640, 216, -1345,
-  -103, -868, -559, 260,
-  -1461, -1316, 634, -506
+int enc_offset[MAX_DOF] = { // SAH030BR029
+  0, 0, 0, 0,
+  0, 0, 0, 0,
+  0, 0, 0, 0,
+  0, 0, 0, 0
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -553,6 +553,14 @@ int GetCANChannelIndex(const TCHAR* cname)
 // Program main
 int main(int argc, TCHAR* argv[])
 {
+	// offsets: load from file which given in cmdline arg #1 (#0 is program itself)
+	if(argc > 1)
+	{
+		FILE *fp = fopen(argv[1],"r");
+		for(int i=0;i<MAX_DOF;i++)
+			fscanf(fp,"%d",&(enc_offset[i]));
+		fclose(fp);
+	}
   PrintInstruction();
 
   memset(&vars, 0, sizeof(vars));
