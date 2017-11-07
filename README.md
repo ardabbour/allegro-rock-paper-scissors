@@ -5,7 +5,7 @@ This project works only for PEAK System CAN interface (chardev) for USB: PCAN-US
 Download
 --------
 Git Repo
-https://github.com/thedabbour/allegro_kinect_rpc/
+https://github.com/thedabbour/allegro-rock-paper-scissors/
 
 Dependencies
 ------------
